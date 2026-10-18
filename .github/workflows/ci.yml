@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Fast pure-logic unit tests: claims, parsing, carousel, SVG.
+  # These only exercise pure functions (no ffmpeg/pdftotext/TTS),
+  # so they need no system dependencies.
+  server-unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  # Type check + production build of the React client.
+  client-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  # Full pipeline against a REAL arXiv paper in silent-fallback mode
+  # (RYB_TTS=0), so no macOS `say` engine is needed.
+  # Needs: pdftotext (poppler), ffmpeg/ffprobe, network access to arXiv.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [server-unit, client-build]
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - name: Install system deps (poppler, ffmpeg)
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils ffmpeg
+      - run: npm ci
+      - name: Start server in background
+        run: |
+          RYB_TTS=0 node server.js > /tmp/ryn_server.log 2>&1 &
+          echo $! > /tmp/ryn_server.pid
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3001/api/health > /dev/null; then
+              echo "server up"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://localhost:3001/api/health
+      - name: Run E2E (silent reel, real arXiv paper)
+        run: RYB_TTS=0 node test/e2e.mjs
+        timeout-minutes: 10
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/ryn_server.log
+      - name: Stop server
+        if: always()
+        run: kill $(cat /tmp/ryn_server.pid) 2>/dev/null || true
