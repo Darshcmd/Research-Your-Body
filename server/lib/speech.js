@@ -1,5 +1,6 @@
 /**
- * Narration (speech) for the reel using the macOS `say` engine (offline).
+ * Narration for the reel using an offline speech engine: macOS `say` locally
+ * or eSpeak NG on Linux/cloud hosts.
  *
  *  - narrationForSlide(): build the spoken script for each slide
  *  - cleanForSpeech(): strip citations/URLs, expand symbols for TTS
@@ -68,19 +69,7 @@ export function narrationForSlide(slide, paper, claim) {
   return capWords(cleanForSpeech(text));
 }
 
-/** Is the speech engine usable on this machine? */
-export async function speechAvailable() {
-  if (process.env.RYB_TTS === "0") return false;
-  if (process.platform !== "darwin") return false;
-  try {
-    await execFileAsync("say", ["-v", "?"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function aiffDuration(file) {
+async function mediaDuration(file) {
   const { stdout } = await execFileAsync("ffprobe", [
     "-v", "error",
     "-show_entries", "format=duration",
@@ -90,6 +79,35 @@ async function aiffDuration(file) {
   return Number(stdout.trim());
 }
 
+/** Resolve an installed offline TTS engine without requiring API keys. */
+export async function speechEngine() {
+  if (process.env.RYB_TTS === "0") return null;
+  const requested = (process.env.RYB_TTS_ENGINE ?? "auto").toLowerCase();
+  const candidates =
+    requested === "auto"
+      ? process.platform === "darwin"
+        ? ["say", "espeak-ng"]
+        : ["espeak-ng", "say"]
+      : [requested];
+
+  for (const engine of candidates) {
+    try {
+      if (engine === "say") await execFileAsync("say", ["-v", "?"]);
+      else if (engine === "espeak-ng") await execFileAsync("espeak-ng", ["--version"]);
+      else continue;
+      return engine;
+    } catch {
+      // Try the next supported engine.
+    }
+  }
+  return null;
+}
+
+/** Is a supported speech engine usable on this machine? */
+export async function speechAvailable() {
+  return Boolean(await speechEngine());
+}
+
 /**
  * Synthesize narration for all slides into `narrationDir`.
  * Returns { voice, segments: [{ slideId, text, file, seconds }] } where every
@@ -97,7 +115,9 @@ async function aiffDuration(file) {
  */
 export async function narrateSlides(slides, paper, claims, narrationDir) {
   await fs.mkdir(narrationDir, { recursive: true });
-  const voice = process.env.RYB_TTS_VOICE || undefined;
+  const engine = await speechEngine();
+  if (!engine) throw new Error("No supported speech engine is installed");
+  const voice = process.env.RYB_TTS_VOICE || (engine === "espeak-ng" ? "en" : undefined);
   const rate = process.env.RYB_TTS_RATE || undefined;
 
   const segments = [];
@@ -106,30 +126,37 @@ export async function narrateSlides(slides, paper, claims, narrationDir) {
     const claim = claims.find((c) => c.id === slide.claimId);
     const text = narrationForSlide(slide, paper, claim);
 
-    const aiff = path.join(narrationDir, `seg-${i}-raw.aiff`);
+    const raw = path.join(narrationDir, `seg-${i}-raw.${engine === "say" ? "aiff" : "wav"}`);
     const wav = path.join(narrationDir, `seg-${i}.wav`);
-    const args = [];
-    if (voice) args.push("-v", voice);
-    if (rate) args.push("-r", rate);
-    args.push("-o", aiff, text);
-    await execFileAsync("say", args);
+    if (engine === "say") {
+      const args = [];
+      if (voice) args.push("-v", voice);
+      if (rate) args.push("-r", rate);
+      args.push("-o", raw, text);
+      await execFileAsync("say", args);
+    } else {
+      const args = ["-v", voice, "-w", raw];
+      if (rate) args.push("-s", rate);
+      args.push(text);
+      await execFileAsync("espeak-ng", args);
+    }
 
-    const speech = await aiffDuration(aiff);
+    const speech = await mediaDuration(raw);
     const seconds = Math.max(speech + TRAIL_PAD, MIN_SLIDE);
 
     // Pad/trim to the exact duration and normalize to a common format so
     // segments can be concatenated losslessly.
     await execFileAsync("ffmpeg", [
       "-y", "-hide_banner", "-loglevel", "error",
-      "-i", aiff,
+      "-i", raw,
       "-af", "apad",
       "-t", String(seconds),
       "-ar", "44100", "-ac", "1",
       "-c:a", "pcm_s16le",
       wav,
     ]);
-    await fs.rm(aiff, { force: true });
+    await fs.rm(raw, { force: true });
     segments.push({ slideId: slide.id, text, file: wav, seconds });
   }
-  return { voice: voice ?? "system default", segments };
+  return { voice: voice ?? "system default", engine, segments };
 }

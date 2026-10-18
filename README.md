@@ -67,6 +67,32 @@ durationSeconds, segments }` at render time, and `render.reel.secondsPerSlide`
 is `null` for narrated reels (timing is carried by the audio, not by `fps=30`
 per-slide constants).
 
+Cloud deployments use the included `server/Dockerfile`, which installs
+`ffmpeg`, `pdftotext`, and eSpeak NG. That means every rendered MP4 includes
+an offline English narration track without a third-party API key. Mount a
+persistent volume at `/app/data` so projects and deliverables survive restarts.
+
+Useful server settings:
+
+```text
+RYB_TTS=1                  # default; set 0 only to make silent reels
+RYB_TTS_ENGINE=espeak-ng   # cloud/Docker; use auto for local development
+RYB_TTS_VOICE=en           # eSpeak NG voice
+RYB_TTS_RATE=175           # words per minute (optional)
+RYB_DATA_DIR=/app/data/projects
+```
+
+Build and run the complete API locally or on any Docker-capable host:
+
+```bash
+docker build -t research-your-body-api ./server
+docker run --rm -p 3001:3001 -v ryb-data:/app/data research-your-body-api
+```
+
+The API is then available at `http://localhost:3001/api/health`. In production,
+use a persistent disk mounted at `/app/data`, expose the container over HTTPS,
+and point the Netlify frontend's `VITE_API_BASE_URL` at that HTTPS origin.
+
 ## Test
 
 ```bash
