@@ -1,0 +1,8 @@
+# The deployable Vite app is in client/, not the repository root.
+[build]
+  base = "client"
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"

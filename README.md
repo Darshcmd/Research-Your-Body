@@ -40,6 +40,14 @@ In the repository, set **Settings → Pages → Build and deployment → Source*
 **GitHub Actions**. The deployed app will use hash routes, so its project links
 work under the repository Pages URL.
 
+## Netlify
+
+The root `netlify.toml` builds the Vite application in `client/` and publishes
+`client/dist`; it prevents Netlify from deploying the repository root, which
+does not contain an `index.html`. If the API is hosted separately, set
+`VITE_API_BASE_URL` in Netlify's environment variables to its public HTTPS
+origin, then trigger a new deploy.
+
 ## Narration
 
 Reels are narrated with the macOS `say` engine (offline TTS) when a speech
