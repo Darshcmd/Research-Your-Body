@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { assetUrl, downloadUrl } from "../api/client";
+import { api, assetUrl, downloadUrl } from "../api/client";
 import type { ExportManifest, RenderManifest } from "../types";
 
 interface Props {
@@ -34,7 +34,7 @@ export default function RenderExportPanel({
     setBusy("render");
     setError(null);
     try {
-      const manifest = await apiRender();
+      const manifest = await api.render(projectId);
       onRendered(manifest);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -43,25 +43,11 @@ export default function RenderExportPanel({
     }
   };
 
-  const apiRender = async () => {
-    const res = await fetch(`/api/projects/${projectId}/render`, { method: "POST" });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? `Render failed (${res.status})`);
-    }
-    return (await res.json()) as RenderManifest;
-  };
-
   const runExport = async () => {
     setBusy("export");
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}/export`, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Export failed (${res.status})`);
-      }
-      onExported((await res.json()) as ExportManifest);
+      onExported(await api.exportDeliverables(projectId));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

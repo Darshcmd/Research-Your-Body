@@ -1,7 +1,12 @@
 import type { Carousel, Project, ProjectSummary, RenderManifest, ExportManifest, ReviewStatus } from "../types";
 
+// Local development uses Vite's /api proxy. A Pages build must supply the
+// public URL of the separately hosted API (without a trailing slash).
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const apiUrl = (path: string) => `${apiBaseUrl}${path}`;
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(apiUrl(url), {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
@@ -45,9 +50,11 @@ export const api = {
 };
 
 export const assetUrl = (projectId: string, file: string) =>
-  `/api/projects/${projectId}/assets/${encodeURIComponent(file)}`;
+  apiUrl(`/api/projects/${projectId}/assets/${encodeURIComponent(file)}`);
 
 export const downloadUrl = (
   projectId: string,
   artifact: "reel" | "static" | "zip" | "pdf"
 ) => `/api/projects/${projectId}/download/${artifact}`;
+
+export { apiUrl };

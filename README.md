@@ -27,6 +27,19 @@ cd client && npm install && npm run dev
 Open http://localhost:5173, paste an arXiv id (e.g. `1706.03762`), and walk
 the tabs: **Claims → Carousel → Render & Export**.
 
+## GitHub Pages
+
+GitHub Pages can host the React client, but not this project's API: ingesting
+papers, saving projects, rendering media, and exporting ZIPs require the Node
+server plus `ffmpeg` and `pdftotext`. The included Pages workflow deploys the
+client after every push to `main`. Host `server/` on a Node-capable service,
+then set the repository Actions variable `API_BASE_URL` to its public HTTPS
+origin (for example, `https://api.example.com`, without a trailing slash).
+
+In the repository, set **Settings → Pages → Build and deployment → Source** to
+**GitHub Actions**. The deployed app will use hash routes, so its project links
+work under the repository Pages URL.
+
 ## Narration
 
 Reels are narrated with the macOS `say` engine (offline TTS) when a speech
