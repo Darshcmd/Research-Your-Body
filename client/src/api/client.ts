@@ -5,6 +5,9 @@ import type { Carousel, Project, ProjectSummary, RenderManifest, ExportManifest,
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const apiUrl = (path: string) => `${apiBaseUrl}${path}`;
 
+// Vite proxies /api locally. Static hosts need an explicitly deployed API.
+export const apiEnabled = import.meta.env.DEV || Boolean(apiBaseUrl);
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(url), {
     headers: { "Content-Type": "application/json" },

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api/client";
+import { api, apiEnabled } from "../api/client";
 import type { ProjectSummary } from "../types";
 
 export default function Home() {
@@ -11,12 +11,13 @@ export default function Home() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (!apiEnabled) return;
     api.listProjects().then(setProjects).catch((e) => setError(e.message));
   }, []);
 
   const ingest = async (e: FormEvent) => {
     e.preventDefault();
-    if (!arxivId.trim() || loading) return;
+    if (!apiEnabled || !arxivId.trim() || loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -40,6 +41,18 @@ export default function Home() {
         </p>
       </header>
 
+      {!apiEnabled && (
+        <section className="mb-8 rounded-xl border border-ember/40 bg-ink-800 p-6">
+          <h2 className="text-lg font-semibold text-blush">Frontend preview</h2>
+          <p className="mt-2 text-sm leading-6 text-clay">
+            This public site is running without its processing server, so it can
+            display the interface but cannot fetch papers or create deliverables.
+            To use the complete app locally, run the API on port 3001 and open
+            the Vite development site at <code>http://localhost:5173</code>.
+          </p>
+        </section>
+      )}
+
       <form onSubmit={ingest} className="rounded-xl bg-ink-800 p-6">
         <label htmlFor="arxivId" className="block text-sm font-semibold text-blush">
           arXiv paper ID
@@ -54,16 +67,16 @@ export default function Home() {
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !apiEnabled}
             className="rounded-lg bg-ember px-5 py-2 font-semibold text-ink-900 transition hover:bg-rust-500 disabled:opacity-50"
           >
-            {loading ? "Ingesting…" : "Ingest paper"}
+            {loading ? "Ingesting…" : apiEnabled ? "Ingest paper" : "Backend unavailable"}
           </button>
         </div>
         {error && <p className="mt-3 text-sm text-rust-500">{error}</p>}
       </form>
 
-      <section className="mt-10">
+      {apiEnabled && <section className="mt-10">
         <h2 className="mb-3 text-lg font-semibold text-blush">Your projects</h2>
         {projects.length === 0 ? (
           <p className="text-clay">No projects yet. Ingest a paper to get started.</p>
@@ -86,7 +99,7 @@ export default function Home() {
             ))}
           </ul>
         )}
-      </section>
+      </section>}
     </div>
   );
 }

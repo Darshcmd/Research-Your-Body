@@ -46,7 +46,9 @@ The root `netlify.toml` builds the Vite application in `client/` and publishes
 `client/dist`; it prevents Netlify from deploying the repository root, which
 does not contain an `index.html`. If the API is hosted separately, set
 `VITE_API_BASE_URL` in Netlify's environment variables to its public HTTPS
-origin, then trigger a new deploy.
+origin, then trigger a new deploy. Without that variable, the hosted site stays
+as a usable frontend preview and intentionally disables paper processing rather
+than showing a misleading API `404` error.
 
 ## Narration
 
